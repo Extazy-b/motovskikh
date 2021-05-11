@@ -1,0 +1,39 @@
+a.share.fb {
+  background: #0f78f3;
+}
+a.share.tg {
+  background: #2ea5e1;
+}
+a.share.tw {
+  background: #41abe1;
+}
+a.share.vk {
+  background: #4f81b9;
+}
+a.share.fb:hover {
+  background: #0a62c6;
+}
+a.share.tg:hover {
+  background: #1b89bf;
+}
+a.share.tw:hover {
+  background: #2095cf;
+}
+a.share.vk:hover {
+  background: #3d6899;
+}
+.share-icon {
+  background: url(/icons/share.png);
+}
+a.share.fb .share-icon {
+  background-position-y: 33.33%;
+}
+a.share.tg .share-icon {
+  background-position-y: 0;
+}
+a.share.tw .share-icon {
+  background-position-y: 100%;
+}
+a.share.vk .share-icon {
+  background-position-y: 66.66%;
+}

@@ -1,0 +1,19 @@
+.slider {
+  max-height: 1000px;
+  overflow-y: hidden;
+  transition: max-height 0.63s;
+}
+.slidedUp {
+  max-height: 0;
+}
+.fader {
+  opacity: 1;
+  transition: opacity 0.2s, visibility 0.2s;
+}
+.fadedOut {
+  opacity: 0;
+  visibility: hidden;
+}
+.hidden {
+  display: none;
+}

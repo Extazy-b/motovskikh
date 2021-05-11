@@ -1,0 +1,78 @@
+.soundIconBack,
+input[type="checkbox"] + .soundIcon {
+  background-image: url(./icons/sound_blue.png);
+  background-size: cover;
+  border-radius: 8px;
+  height: 30px;
+  transition: 0.2s;
+  width: 30px;
+}
+input[type="checkbox"] + label.soundIcon {
+  background-position: 0 -30px;
+  padding-left: 30px;
+  width: 0;
+}
+input[type="checkbox"]:checked + label.soundIcon {
+  background-position: 0 -30px;
+  opacity: 0;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  left: -1000px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  width: 1px;
+  z-index: -1000;
+}
+input[type="checkbox"] + label,
+input[type="radio"] + label {
+  background-position: 0 1px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  display: inline-block;
+  height: 23px;
+  padding-left: 25px;
+}
+input[type="checkbox"]:checked + label,
+input[type="radio"]:checked + label {
+  background-position: 0 -22px;
+}
+label {
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.checkboxLabel {
+  background-image: url(./icons/checkbox.png);
+}
+.radioLabel {
+  background-image: url(./icons/radio.png);
+}
+.heart,
+.heartBack {
+  background: url(./icons/heart.png);
+  background-position: 0 30px;
+  background-size: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  height: 30px;
+  transition: 0.2s;
+  width: 30px;
+}
+.heart,
+.soundIcon {
+  background-position: 0 0;
+  position: absolute;
+  top: 0;
+}
+.heart:hover {
+  opacity: 0;
+}

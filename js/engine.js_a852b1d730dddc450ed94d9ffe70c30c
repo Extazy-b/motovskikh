@@ -1,0 +1,699 @@
+/*
+    © Leon Motovskikh, 2017—2021
+    leon@motovskikh.ru
+*/
+
+"use strict";
+import {
+  colours,
+  div,
+  modes,
+  panels,
+  paths,
+  states,
+  subclasses,
+  difficulties,
+  soundPacks,
+  defaultValues,
+} from "./declare.js";
+import { MapGame, Settings, Hymn, Sound, Timer, Zoom } from "./classes.js";
+import { effect, slidePanel } from "./effects.js";
+import {
+  choice,
+  getCookie,
+  setCookie,
+  setByCookie,
+  replaceHref,
+  fillRegion,
+  getPromise,
+} from "./helpers.js";
+const hymn = new Hymn();
+const sound = new Sound([div.checkboxSound, div.checkTopSound]);
+const timer = new Timer(div.timerBlock);
+const settings = new Settings();
+const zoom = new Zoom();
+const game = new MapGame(
+  document.getElementById("mapName").getAttribute("content"),
+  document.getElementById("language").getAttribute("content")
+);
+function colourRegion(region, colour) {
+  if (!settings.colourCorrect) {
+    return;
+  }
+  fillRegion(region, region.data("subclass"), colour);
+  const name = region.data("name");
+  if (name in game.empty) {
+    fillRegion(game.empty[name], subclasses.empty, colour);
+  }
+}
+function getHoverText(region) {
+  const title = region.data("object")[settings.lang];
+  switch (settings.mode) {
+    case modes.regions:
+      return title;
+    case modes.capitals:
+      if (
+        region.data("city_state") ||
+        region.data("params").has_capitals === false
+      ) {
+        return title;
+      }
+      let capital = region.data("capital")[settings.lang];
+      if (region.data("params") && region.data("params").defacto) {
+        capital += game.slang._defacto;
+      }
+      return capital + ", " + title;
+    case modes.flags:
+      return title;
+  }
+}
+function regionDown(event) {
+  game.setPos(event.pageX, event.pageY);
+}
+function regionExtraUp(event) {
+  raiseHover(event, this.data("object")[settings.lang], colours.extra);
+  return;
+}
+function regionUp(event) {
+  console.log("click");
+  if (
+    Math.abs(game.pos.x - event.pageX) > 10 ||
+    Math.abs(game.pos.y - event.pageY) > 10
+  ) {
+    return;
+  }
+  if (event.which !== 1) {
+    return;
+  }
+  if (game.state === states.loaded) {
+    return;
+  }
+  const hoverText = getHoverText(this);
+  const colour = this.node.className.baseVal.split(" ")[1];
+  console.log(this.data("name"));
+  switch (game.state) {
+    case states.started:
+      if (colour !== undefined && colour !== colours.hint) {
+        raiseHover(event, hoverText, colour);
+        appendHoverFlag(event, this.data("name"));
+        return;
+      }
+      if (this.node.className.baseVal === colours.extra) {
+        raiseHover(event, hoverText, colours.extra);
+        return;
+      }
+      if (game.current.name === this.data("name")) {
+        clickCorrect(event);
+      } else {
+        /*clickWrong(event, hoverText, this.data("name"));*/
+        clickCorrect(event);
+      }
+      return;
+    case states.finished:
+      raiseHover(event, hoverText, colour);
+      appendHoverFlag(event, this.data("name"));
+  }
+}
+function clickCorrect(event) {
+  const colour = colours.fill[game.errors.current];
+  if (settings.colourCorrect) {
+    colourRegion(game.current.element, colour);
+  } else {
+    raiseHover(event, choice(game.slang.__correct), colour);
+  }
+  game.boxies[game.current.index].classList.add(colour);
+  game.next();
+  sound.play("beep");
+  setNextRegion();
+}
+function clickWrong(event, hoverText, regionName) {
+  sound.play("boop");
+  game.addError(settings.limitErrors);
+  if (settings.limitErrors && game.errors.current === 3) {
+    colourRegion(game.current.element, colours.hint);
+  }
+  if (settings.showRegionName) {
+    raiseHover(event, hoverText, colours.fill[3]);
+    appendHoverFlag(event, regionName);
+  } else {
+    raiseHover(event, choice(game.slang.__wrong), colours.fill[3]);
+  }
+}
+function raiseHover(event, text, colourClass) {
+  effect.fade.out(div.hovers.answer);
+  if (colourClass === undefined) {
+    colourClass = "default";
+  }
+  if (game.state !== states.finished) {
+    game.refreshTimer("hover", () => {
+      effect.fade.out(div.hovers.answer);
+    });
+  }
+  div.hovers.answer.className = `hover fader ${colourClass}`;
+  div.hovers.answer.classList.add(settings.lang);
+  div.hovers.answer.innerHTML = text;
+  div.hovers.answer.style.top =
+    (event.pageY + defaultValues.hoverOffset).toString() + "px";
+  effect.fade.in(div.hovers.answer);
+  const left = event.pageX + defaultValues.hoverOffset;
+  if (
+    left >
+    div.map.offsetWidth -
+      div.hovers.answer.offsetWidth -
+      defaultValues.hoverOffset
+  ) {
+    div.hovers.answer.style.left = "auto";
+    div.hovers.answer.style.right = "10px";
+  } else {
+    div.hovers.answer.style.left = left.toString() + "px";
+    div.hovers.answer.style.right = "auto";
+  }
+}
+function appendHoverFlag(event, regionName) {
+  if (settings.mode !== modes.flags) {
+    return;
+  }
+  const left = event.pageX + defaultValues.hoverOffset;
+  const flagHover = new Image();
+  flagHover.onload = () => {
+    if (
+      left >
+      div.map.offsetWidth - flagHover.width - defaultValues.hoverOffset
+    ) {
+      flagHover.style.left = "auto";
+      flagHover.style.right = "0";
+    } else {
+      flagHover.style.left = "0";
+      flagHover.style.right = "auto";
+    }
+  };
+  flagHover.className = "flag";
+  flagHover.src = `/flags/${regionName}.png`;
+  div.hovers.answer.appendChild(flagHover);
+}
+function setNextRegion() {
+  effect.fade.out(div.hovers.answer);
+  if (game.current.index === game.board.length) {
+    showGameOver();
+    return;
+  }
+  game.refresh();
+  const params = game.current.element.data("params");
+  let whereString = game.slang.__where[settings.mode];
+  let whereAfter = game.slang.__where_after[settings.mode];
+  let regionString = "";
+  switch (settings.mode) {
+    case modes.regions:
+      if (params && params.plural) {
+        whereString = game.slang._where_pl;
+      }
+      regionString = game.current.element.data("object")[settings.lang] + "?";
+      break;
+    case modes.capitals:
+      regionString = game.current.element.data("capital")[settings.lang];
+      if (params && params.defacto) {
+        regionString += game.slang._defacto;
+      }
+      break;
+    case modes.flags:
+      const flagImage = "/flags/" + game.current.element.data("name") + ".png";
+      if (game.current.index === 0) {
+        div.flagImage.src = flagImage;
+        div.flagCoverImage.src = flagImage;
+        break;
+      }
+      if (div.flagCoverImage.classList.contains("fadedOut")) {
+        div.flagCoverImage.src = flagImage;
+      } else {
+        div.flagImage.src = flagImage;
+      }
+      break;
+  }
+  div.whereIs.innerHTML = whereString;
+  div.regionName.innerHTML = regionString;
+  console.log(regionString);
+  div.whereAfter.innerHTML = whereAfter;
+}
+function showGameOver() {
+  function getGrade(score) {
+    if (score < 33) {
+      return "_F";
+    } else if (score < 52) {
+      return "_D";
+    } else if (score < 70) {
+      return "_C";
+    } else if (score < 85) {
+      return "_B";
+    } else if (score < 100) {
+      return "_A";
+    } else {
+      return "_A+";
+    }
+  }
+  function formGrade(grade) {
+    grade += "*";
+    if (game.score === 100) {
+      hymn.stop();
+      hymn.play();
+      return game.slang[grade];
+    }
+    return (
+      game.slang[grade] + game.slang._acc + game.slang[grade + "_after"] + "."
+    );
+  }
+  game.calculateScore(settings.limitErrors);
+  const desc = game.slang._description;
+  let mine = desc + game.slang._mine + game.score + "%25";
+  let tw = desc + game.slang._mine_tw + game.score + "%25";
+  let result = game.score + "%";
+  if (timer.on) {
+    result += game.slang._timer + timer.text;
+    mine += game.slang._timer + timer.text;
+    tw += game.slang._timer_tw + timer.text;
+  }
+  const grade = getGrade(game.score);
+  div.resultMessage.innerHTML = game.slang[grade];
+  div.resultCaption.innerHTML = formGrade(grade);
+  div.facebookShare.forEach((a) => {
+    replaceHref(a, "title]", mine);
+  });
+  div.telegramShare.forEach((a) => {
+    replaceHref(a, "text", mine);
+  });
+  div.twitterShare.forEach((a) => {
+    replaceHref(a, "text", tw);
+  });
+  div.vkShare.forEach((a) => {
+    replaceHref(a, "title", mine);
+  });
+  div.resultScore.innerHTML = result + "!";
+  div.tiredButton.innerHTML = game.slang.restartButton;
+  game.setState(states.finished);
+  effect.slide.down(div.panelGameOver);
+  effect.fade.out(div.question);
+  effect.fade.out(div.flagger);
+  effect.fade.out(div.flaggerCover);
+  timer.stop();
+  overlapZoom();
+}
+function initialize() {
+  getPromise(paths.getMap, { name: game.name, language: game.lang }).then(
+    getMapResolve,
+    getMapReject
+  );
+  div.buttonNewGame.onclick = start;
+  div.buttonRestart.onclick = start;
+  effect.display.show(div.buttonChangeSettings);
+  div.hovers.answer.onclick = () => {
+    effect.fade.out(div.hovers.answer);
+  };
+  div.hovers.respect.onclick = () => {
+    effect.fadeOut.respect(div.hovers.respect);
+  };
+  div.buttonRespect.onclick = () => {
+    effect.slide.up(div.panelSharer);
+    overlapZoom();
+    div.respectGrande.innerHTML = choice(
+      div.buttonRespect.dataset.yos.split(";")
+    );
+    effect.fade.in(div.hovers.respect);
+    game.refreshTimer("respect", () => {
+      effect.fade.out(div.hovers.respect);
+    });
+  };
+  div.buttonSettings.onclick = () => {
+    effect.slide.toggle(div.panelSettings);
+    overlapZoom();
+  };
+  document.getElementById("doNotChangeSettings").onclick = () => {
+    effect.slide.up(div.panelSettings);
+    overlapZoom();
+  };
+  div.maximize.onclick = () => {
+    effect.slide.down(div.panelGameOver);
+    effect.fade.out(div.maximize);
+    overlapZoom();
+  };
+  document.getElementById("minimize").onclick = () => {
+    effect.slide.up(div.panelGameOver);
+    effect.fade.in(div.maximize);
+    overlapZoom();
+  };
+  document.getElementById("sharer").onclick = () => {
+    effect.slide.toggle(div.panelSharer);
+    overlapZoom();
+  };
+  document.addEventListener("keyup", (event) => {
+    if (event.code === "Enter") {
+      event.preventDefault();
+      slidePanel(div.panelNewGame, div.buttonNewGame);
+      slidePanel(div.panelGameOver, div.buttonRestart);
+      slidePanel(div.panelSettings, div.buttonChangeSettings);
+      slidePanel(div.panelSharer, div.buttonRespect);
+      overlapZoom();
+    }
+    if (event.code === "KeyF") {
+      event.preventDefault();
+      slidePanel(div.panelSharer, div.buttonRespect);
+      overlapZoom();
+    }
+  });
+  div.buttonChangeSettings.onclick = () => {
+    div.regionName.classList.remove(settings.lang);
+    div.hovers.answer.classList.remove(settings.lang);
+    effect.slide.up(div.panelSettings);
+    settings.setValues(
+      document.querySelector(div.difficulty).value,
+      document.querySelector(div.language).value,
+      document.querySelector(div.mode).value
+    );
+    div.regionName.classList.add(settings.lang);
+    div.hovers.answer.classList.add(settings.lang);
+    const cookiePath = "/" + game.slang._urlprefix + game.name;
+    setCookie(
+      "motovskikh-tests-difficulty-" + game.name,
+      settings.difficulty,
+      defaultValues.cookieSeconds,
+      cookiePath,
+      "",
+      true
+    );
+    setCookie(
+      "motovskikh-tests-language-" + game.name,
+      settings.lang,
+      defaultValues.cookieSeconds,
+      cookiePath,
+      "",
+      true
+    );
+    setCookie(
+      "motovskikh-tests-mode-" + game.name,
+      settings.mode,
+      defaultValues.cookieSeconds,
+      cookiePath,
+      "",
+      true
+    );
+    bindRegions();
+    start();
+  };
+  div.tiredButton.onclick = () => {
+    switch (game.state) {
+      case states.started:
+        sound.play("boop");
+        for (let i = game.current.index; i < game.board.length; i++) {
+          game.colourBoxie(i, colours.fill[3]);
+          colourRegion(game.board[i], colours.fill[3]);
+        }
+        game.getTired(settings.limitErrors);
+        showGameOver();
+        break;
+      case states.finished:
+        start();
+    }
+  };
+  div.checkboxTimer.onchange = () => {
+    const val = div.checkboxTimer.checked;
+    if (val) {
+      effect.fade.in(div.timerBlock);
+    } else {
+      effect.fade.out(div.timerBlock);
+    }
+    timer.setOn(val);
+    setCookie(
+      "motovskikh-tests-timer",
+      val.toString(),
+      defaultValues.cookieSeconds,
+      "/",
+      "",
+      true
+    );
+  };
+  div.checkboxZoom.onchange = () => {
+    zoom.toggle();
+    div.map.classList.toggle("draggable", zoom.on);
+    setCookie(
+      "motovskikh-tests-zoom",
+      zoom.on.toString(),
+      defaultValues.cookieSeconds,
+      "/",
+      "",
+      true
+    );
+  };
+  div.flagImage.onload = () => {
+    effect.fade.in(div.flagImage);
+    effect.fade.out(div.flagCoverImage);
+  };
+  div.flagCoverImage.onload = () => {
+    effect.fade.in(div.flagCoverImage);
+    effect.fade.out(div.flagImage);
+  };
+  function toggleSound() {
+    sound.toggle();
+    if (!sound.on) {
+      hymn.stop();
+    }
+    div.playSounds.title =
+      game.slang._sound + game.slang.__checker[sound.on.toString()];
+    setCookie(
+      "motovskikh-tests-sound",
+      sound.on.toString(),
+      defaultValues.cookieSeconds,
+      "/",
+      "",
+      true
+    );
+  }
+  div.checkboxSound.onchange = toggleSound;
+  div.checkTopSound.onchange = toggleSound;
+}
+function overlapZoom() {
+  zoom.overlap(panels.length - effect.slide.count(panels));
+}
+function bindRegions() {
+  const board = [];
+  for (let region of game.regions) {
+    region.unmouseup(regionUp);
+    region.mouseup(regionUp);
+    if (region.data("params")["has_" + settings.mode] === false) {
+      region.node.setAttribute("class", colours.extra);
+      continue;
+    }
+    board.push(region);
+  }
+  console.log(board);
+  game.setBoard(board);
+  game.calculateBoxies();
+}
+function getMapReject() {
+  effect.display.hide(document.getElementById("loading"));
+  effect.display.show(document.getElementById("loadingError"));
+}
+function getMapResolve(result) {
+  function setLanguage() {
+    for (let elem in game.slang) {
+      if (elem[0] !== "_") {
+        const element = document.getElementById(elem);
+        if (element !== null) {
+          element.innerHTML = game.slang[elem];
+        }
+      }
+    }
+    document.getElementById("home").title = game.slang._home;
+    document.getElementById("task").innerHTML =
+      game.slang._task + game.slang._taskMap;
+    document.getElementById("zoom").title = game.slang["_zoom-title"];
+    effect.display.hide(document.getElementById("loading"));
+    div.tiredButton.innerHTML = game.slang._tired;
+    div.playSounds.title =
+      game.slang._sound + game.slang.__checker[sound.on.toString()];
+    div.creditsList.innerHTML =
+      game.slang._credits +
+      (game.slang["_credits+"] ? game.slang["_credits+"] : "") +
+      game.slang._cc;
+  }
+  function drawSVG(width, height) {
+    const rsr = Raphael("map", width, height);
+    zoom.init(rsr, width, height);
+    div.map.addEventListener("wheel", (event) => zoom.delta(event));
+    div.map.onmousedown = (event) => zoom.hit(event);
+    document.onmouseup = (event) => zoom.unleash(event);
+    return rsr;
+  }
+  function drawPath(path) {
+    const r = rsr.path(path.src);
+    const subclass = path.subclass ? path.subclass : subclasses.region;
+    r.node.classList.add(subclass);
+    switch (subclass) {
+      case subclasses.region:
+      case subclasses.waters:
+        r.data("id", path.id)
+          .data("capital", path.capital)
+          .data("capital_params", path.capital_params)
+          .data(
+            "city_state",
+            path.capital[game.lang] === path.object[game.lang]
+          )
+          .data("name", path.name)
+          .data("object", path.object)
+          .data("params", path.object_params)
+          .data("subclass", subclass);
+        r.mousedown(regionDown);
+        game.regions.push(r);
+        const boxie = document.createElement("div");
+        boxie.className = "boxie";
+        div.boxiesPapa.appendChild(boxie);
+        break;
+      case subclasses.extra:
+        r.data("object", path.object);
+        r.mouseup(regionExtraUp);
+        return;
+      case subclasses.dashed:
+        r.toFront();
+        break;
+      case subclasses.empty:
+        game.empty[path.name] = r;
+        r.toBack();
+        break;
+      case subclasses.zoom:
+        r.toBack();
+        break;
+    }
+  }
+  const map = result.result;
+  if (!map) {
+    return;
+  }
+  const rsr = drawSVG(map.settings.width, map.settings.height);
+  for (let path of map.paths) {
+    drawPath(path);
+  }
+  if (map.settings.zoom === -1) {
+    document.getElementsByTagName("svg")[0].style.maxHeight =
+      map.settings.height + "px";
+    div.map.style.backgroundImage = `url("/img/tests/canvases/${map.settings.canvas_path}")`;
+    effect.display.hide(div.zoomer);
+    zoom.toggle();
+  } else {
+    zoom.setDepthMax(
+      map.settings.zoom === 0
+        ? defaultValues.defaultZoomDepthMax
+        : map.settings.zoom
+    );
+    setByCookie("motovskikh-tests-zoom", div.checkboxZoom, zoom);
+  }
+  for (let text in map.texts) {
+    if (!map.texts.hasOwnProperty(text)) {
+      continue;
+    }
+    game.addText(text, map.texts[text]);
+  }
+  setLanguage();
+  if (map.settings.hymn) {
+    const audio = document.createElement("audio");
+    audio.src = "/sounds/hymn_" + game.name + ".mp3";
+    hymn.setAudio(audio);
+  }
+  if (map.settings.modes) {
+    effect.display.show(document.getElementById("modesBlock"));
+    for (let item of map.settings.modes) {
+      effect.display.show(document.getElementById(item));
+    }
+  }
+  if (map.settings.languages) {
+    effect.display.show(div.extraLanguagesBlock);
+    div.extraLanguageDefaultText.innerHTML = game.slang._language;
+    for (let lang of map.settings.languages) {
+      const li = document.createElement("li");
+      const id = "extraLanguage-" + lang;
+      const input = document.createElement("input");
+      input.setAttribute("id", id);
+      input.setAttribute("name", "language");
+      input.setAttribute("type", "radio");
+      input.setAttribute("value", lang);
+      li.appendChild(input);
+      const label = document.createElement("label");
+      label.setAttribute("class", "radioLabel " + lang);
+      label.setAttribute("for", id);
+      label.innerHTML = game.slang.__extraLanguagesNames[lang];
+      li.appendChild(label);
+      div.extraLanguagesList.appendChild(li);
+    }
+  }
+  for (let pack of soundPacks) {
+    const opt = document.createElement("option");
+    opt.innerHTML = game.slang.__soundPacks[pack];
+    opt.value = pack;
+    div.soundPackSelect.appendChild(opt);
+  }
+  div.soundPackSelect.onchange = () => {
+    sound.setPack(div.soundPackSelect.value);
+    sound.play("beep");
+    setCookie(
+      "motovskikh-tests-sound-pack",
+      sound.pack,
+      defaultValues.cookieSeconds,
+      "/",
+      "",
+      true
+    );
+  };
+  game.setInitial(document.querySelectorAll(".boxie"), map.id);
+  function checkRadioByID(id) {
+    const radio = document.getElementById(id);
+    if (radio) {
+      radio.checked = true;
+    }
+  }
+  settings.setValues(
+    getCookie("motovskikh-tests-difficulty-" + game.name, difficulties.normal),
+    getCookie("motovskikh-tests-language-" + game.name, game.lang),
+    getCookie("motovskikh-tests-mode-" + game.name, modes.regions)
+  );
+  checkRadioByID("difficulty-" + settings.difficulty);
+  checkRadioByID("extraLanguage-" + settings.lang);
+  checkRadioByID("mode-" + settings.mode);
+  div.regionName.classList.add(settings.lang);
+  div.hovers.answer.classList.add(settings.lang);
+  setByCookie("motovskikh-tests-sound", div.checkboxSound, sound);
+  setByCookie("motovskikh-tests-sound", div.checkTopSound, sound);
+  sound.setPack(getCookie("motovskikh-tests-sound-pack", soundPacks[0]));
+  div.soundPackSelect.value = sound.pack;
+  const val = setByCookie("motovskikh-tests-timer", div.checkboxTimer, timer);
+  if (val) {
+    effect.fade.in(div.timerBlock);
+  }
+  bindRegions();
+  effect.display.show(div.tiredButton);
+  effect.display.show(div.buttonSettings);
+  effect.display.toggle(div.buttonNewGame);
+  game.setState(states.loaded);
+}
+function start() {
+  console.log("start");
+  effect.slide.up(div.panelNewGame);
+  effect.slide.up(div.panelGameOver);
+  effect.fade.out(div.maximize);
+  game.start();
+  settings.change();
+  switch (settings.mode) {
+    case modes.regions:
+    case modes.capitals:
+      effect.fade.in(div.question);
+      effect.fade.out(div.flagger);
+      effect.fade.out(div.flaggerCover);
+      break;
+    case modes.flags:
+      effect.fade.out(div.question);
+      effect.fade.in(div.flagger);
+      effect.fade.in(div.flaggerCover);
+      break;
+  }
+  div.tiredButton.innerHTML = game.slang._tired;
+  div.map.classList.toggle("draggable", zoom.on);
+  timer.start();
+  setNextRegion();
+  overlapZoom();
+}
+initialize();

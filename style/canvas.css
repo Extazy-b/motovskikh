@@ -1,0 +1,79 @@
+.map {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  max-height: calc(100vmin - 65px);
+}
+.physical_regions .region {
+  fill: #fefefe;
+  fill-opacity: 0.02;
+  stroke-width: 0;
+}
+.physical_seas .region {
+  fill: #0065c4;
+  fill-opacity: 0.45;
+  stroke-width: 2px;
+  stroke: #03539e;
+}
+.physical_cities .region {
+  fill: #fefefe;
+  fill-opacity: 0.3;
+  stroke-width: 3px;
+}
+.physical_regions .region:hover,
+.physical_seas .region:hover {
+  fill-opacity: 0.2;
+  opacity: 1;
+}
+path.extra {
+  fill-opacity: 0.6;
+}
+.physical_cities .green,
+.physical_regions .green {
+  fill-opacity: 0.35;
+  fill: #4ce700;
+}
+.physical_seas .green {
+  fill-opacity: 0.45;
+  fill: #4ce700;
+  stroke: #38a701;
+}
+.physical_regions .green:hover,
+.physical_seas .green:hover {
+  fill-opacity: 0.2;
+}
+.physical_cities .yellow,
+.physical_regions .yellow,
+.physical_seas .yellow {
+  fill-opacity: 0.45;
+  fill: #e7d900;
+  stroke: #a59a01;
+}
+.physical_cities .orange,
+.physical_regions .orange,
+.physical_seas .orange {
+  fill-opacity: 0.45;
+  fill: #e78200;
+  stroke: #854b00;
+}
+.physical_cities .red,
+.physical_regions .red,
+.physical_seas .red {
+  fill-opacity: 0.45;
+  fill: #e70000;
+  stroke: #940000;
+}
+.physical_cities .purple,
+.physical_regions .purple,
+.physical_seas .purple {
+  fill-opacity: 0.45;
+  fill: #6c00e7;
+  stroke: #4a009e;
+}
+.physical_cities .green,
+.physical_cities .orange,
+.physical_cities .purple,
+.physical_cities .red,
+.physical_cities .yellow {
+  fill-opacity: 0.6;
+}
