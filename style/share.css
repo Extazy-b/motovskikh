@@ -23,7 +23,7 @@ a.share.vk:hover {
   background: #3d6899;
 }
 .share-icon {
-  background: url(/icons/share.png);
+  background: url(./icons/share.png);
 }
 a.share.fb .share-icon {
   background-position-y: 33.33%;
